@@ -1,0 +1,10 @@
+### Send POST request with json body
+POST http://localhost:8000/uploadimage/
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="image"; filename="image.jpg"
+
+< /Users/lewismenelaws/PycharmProjects/memegenerator/tests/image.jpg
+
+--boundary--
