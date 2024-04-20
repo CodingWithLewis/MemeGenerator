@@ -3,3 +3,5 @@ venv
 .env
 .idea
 yolov8s-world.pt
+outputs
+*.jpg
