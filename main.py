@@ -1,4 +1,3 @@
-
 from ultralytics import YOLO
 from fastapi import FastAPI, UploadFile, File
 from dotenv import load_dotenv
