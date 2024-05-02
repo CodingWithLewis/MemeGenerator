@@ -1,13 +1,13 @@
 import uuid
 from datetime import datetime
 from typing import Optional, List
-
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Uuid, text
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Uuid, text, event, DDL, INTEGER
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from dotenv import load_dotenv
+from sqlalchemy.engine import Engine
 import os
 load_dotenv()
-
 
 class Base(DeclarativeBase):
     pass
@@ -23,6 +23,10 @@ class MemeEntry(Base):
     meme_added: Mapped[datetime] = mapped_column(
         DateTime(timezone=False), nullable=True
     )
+    title_embedding: Mapped[Vector] = mapped_column(Vector(1536), nullable=True)
+    content_embedding = mapped_column(Vector(1536))
+    vector_id = mapped_column(INTEGER, nullable=True)
+
 
 
 class MemeImage(Base):

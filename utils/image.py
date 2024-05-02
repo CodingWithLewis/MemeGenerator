@@ -1,4 +1,6 @@
 import base64
+import io
+import textwrap
 from io import BytesIO
 from pathlib import Path
 
@@ -51,11 +53,11 @@ def create_bounding_boxes(results: list) -> list[tuple[int, int, int, int]]:
     return boxes
 
 
-def create_bounding_box_in_image(image: Path, box_coords: tuple[int, int, int, int]) -> Path:
+def create_bounding_box_in_image(image: bytes, box_coords: tuple[int, int, int, int]) -> Path:
     from PIL import Image, ImageDraw
     import random
     # Open the image
-    img = Image.open(image).convert("L")
+    img = Image.open(io.BytesIO(image)).convert("L")
     img.save("gray_image.jpg")
 
     img = Image.open("gray_image.jpg").convert("RGB")
@@ -75,32 +77,41 @@ def create_bounding_box_in_image(image: Path, box_coords: tuple[int, int, int, i
 
 
 def add_captions_to_image(boxes, original_image):
-    print(boxes)
-    # Open the image
-    img = Image.open(original_image.file, 'r')
+    original_image = io.BytesIO(original_image)
+    img = Image.open(original_image)
 
-    # Create a drawing context
     draw = ImageDraw.Draw(img)
+    font_path = "/System/Library/Fonts/Supplemental/Arial.ttf"
+    font_size = 24
+    font = ImageFont.truetype(font_path, font_size)
 
-    # Specify the font and size
-    font = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial.ttf", 24)
     for box in boxes:
         bbox = box['box']
-        x_center = (bbox[0] + bbox[2]) / 2
-        y_center = (bbox[1] + bbox[3]) / 2
-        # Specify the position (x, y) where you want to place the text
-        position = (x_center, y_center)  # (x, y) coordinates
-
-        # Specify the text, text color, and stroke color
         text = box['metaphor']
-        text_color = (255, 255, 255)  # RGB color tuple (white in this case)
-        stroke_color = (0, 0, 0)  # RGB color tuple (black in this case)
 
-        # Specify the stroke width
-        stroke_width = 2
+        # Calculate bounding box width and height
+        box_width = bbox[2] - bbox[0]
+        max_line_length = int(box_width / (font_size * 0.2))  # Estimate max characters per line, adjust multiplier as needed
 
-        # Draw the text on the image with the stroke
-        draw.text(position, text, font=font, fill=text_color, stroke_width=stroke_width, stroke_fill=stroke_color, anchor="mm")
+        # Wrap text to fit within bounding box width
+        lines = textwrap.wrap(text, width=max_line_length)
+        y_text = bbox[1]
 
-    # Save the modified image
+        for line in lines:
+            # Measure text size for each line
+            text_size = draw.textlength(line, font=font)
+            # If the text width is wider than the box, reduce the font size
+            while text_size > box_width:
+                font_size -= 1
+                font = ImageFont.truetype(font_path, font_size)
+                text_size = draw.textlength(line, font=font)
+
+            # Calculate text position to center it horizontally
+            text_x = bbox[0] + (box_width - text_size) / 2
+
+            # Draw each line of text
+            draw.text((text_x, y_text), line, font=font, fill=(255, 255, 255), stroke_width=2, stroke_fill=(0, 0, 0))
+            y_text += text_size  # Move y coordinate for next line
+
     img.save("image_with_text_stroke.jpg")
+    return Path("image_with_text_stroke.jpg")

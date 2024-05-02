@@ -2,11 +2,12 @@ import json
 import random
 
 import anthropic
+import litellm
 import lmql
 from dotenv import load_dotenv
 import requests
 from litellm import completion
-
+import os
 from utils.image import convert_to_base_64_string
 
 load_dotenv()
@@ -18,7 +19,8 @@ tools = [
         "type": "function",
         "function": {
             "name": "create_metaphor",
-            "description": "Create a metaphor that the object in the picture given can be compared to. This is for memes, so make it funny and follow the prompt / caption given.",
+            "description": "Create a metaphor that the object in the picture given can be compared to. "
+                           "This is for memes, so make it funny and follow the prompt / caption given.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -26,35 +28,75 @@ tools = [
                         "type": "array",
                         "items": {
                             "type": "string",
-                            "description": "The metaphor that the object in the image can be compared to.",
+                            "description": "A metaphor that the object in the image can be compared to.",
                             "maxLength": 20,
                             "uniqueItems": True,
 
                         },
-                    "minContains": 2,
-                    "maxContains": 2,
+                        "minContains": 2,
+                        "maxContains": 2,
                     }
                 },
                 "required": ["metaphor"]
             },
-        }}
+        }},
+    {
+        "type": "function",
+        "function": {
+            "name": "create_scenarios",
+            "description": "Creates many scenarios that is relatable to a human being in a funny and crude way"
+                           "given a description of the image and the backstory of the meme. "
+                           "This is for memes, so make it funny and follow the prompt / caption given.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "scenarios": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "description": "A scenario that the objects in the image can be compared to. Very relatable to"
+                                           "the person that would be reading the meme.",
+                            "maxLength": 40,
+                            "uniqueItems": True,
+
+                        },
+                        "minContains": 1,
+                        "maxContains": 20,
+                    }
+                },
+                "required": ["metaphor"]
+            },
+        }
+    }
 ]
 
 
-@lmql.query
-async def different_metaphors(image_description: str, funny_reason: str):
-    '''lmql
-    "Based on this detailed image description: {image_description}. And the reason why it's funny: The image is funny because: {funny_reason}"
-    "Here are a list of metaphors that the objects in this image could represent in terms of personal and funny:"
-    metaphors=[]
-    for i in range(10):
-        "[METAPHOR] \n" where STOPS_BEFORE(METAPHOR, "\n")
-        metaphors.append(METAPHOR.strip())
-    return metaphors
-    '''
+# litellm.add_function_to_prompt = True
+def different_metaphors(image_description: str, funny_reason: str, news_information: str):
+    metaphors = completion(
+        model="command-r-plus",
+        messages=[
+            {'role': 'user',
+             'content': f'''
+             Based on this image description: {image_description}. And the meme history:  {funny_reason}
+            Give me a list of relatable scenarios that the objects in this image could represent in terms of personal and funny. 
+            Be as crude and strange as possible and make it relatable to human beings in a funny and clever way.
+            
+            Use context of this news article to help you form these scenarios. Be specific and try to use proper nouns.
+            News Article: {news_information} 
+             '''}
+        ],
+        tools=tools,
+        tool_choice={
+            "type": "function",
+            "function": {"name": "create_scenarios"}
+        }
+    )
+    return json.loads(metaphors.choices[0].message.tool_calls[0].function.arguments)['scenarios']
+
 
 @lmql.query
-async def get_all_objects(image_description: str):
+def get_all_objects(image_description: str):
     '''lmql
     "Based on this detailed image description: {image_description}. Give me a list of the main things of subject seperated by commas. Do not use proper nouns. Only common nouns. This will be going in YOLO object detection. e.g 'person'', 'character' or 'animal'"
     items=[]
@@ -65,70 +107,8 @@ async def get_all_objects(image_description: str):
     '''
 
 
-# @lmql.query
-# async def label_objects(image_description: str):
-#     '''lmql
-#
-#     '''
-
-# def gpt4(prompt: str, image_base64: str = None):
-#     response = openai_client.chat.completions.create(
-#         model="gpt-4-vision-preview",
-#         messages=[
-#             {"role": "system", "content": "Based off of the image provided. Identify what is funny about the image. Then, give examples of things in the bounding boxes represented in a scenario that would be relevant based on the context of the image."},
-#             {
-#                 "role": "user",
-#                 "content": [
-#                     {"type": "text", "text": prompt},
-#                     {
-#                         "type": "image_url",
-#                         "image_url": {
-#                             "url": f"data:image/jpeg;base64,{image_base64}",
-#                         },
-#                     },
-#                 ],
-#             }
-#         ],
-#         max_tokens=300,
-#     )
-#
-#     return response.choices[0]
-
-
-def claude(prompt: str, image_base64: str = None):
-    if image_base64:
-        content = [
-            {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": "image/jpeg",
-                    "data": image_base64
-                }
-            },
-            {"type": "text", "text": prompt}
-        ]
-    else:
-        content = [
-            {"type": "text", "content": prompt}
-        ]
-
-    messages = [
-        {"role": "user", "content": content}
-    ]
-
-    message = client.messages.create(
-        model="claude-3-opus-20240229",
-        max_tokens=1024,
-        messages=messages,
-        system="You explain metaphors and similes in the image. You explain why something is funny. Please be detailed about why it's funny and include a metaphor for the things inside the bounding boxes."
-    )
-
-    return message.content
-
-
-def create_metaphor_labels(boxes: list, initial_image, metaphor_list: list[str]):
-    metaphor_list = [x for x in metaphor_list if x] # Remove duds
+def create_metaphor_labels(boxes: list, initial_image, metaphor_list: list[str], news_information: str, image_description: str, ):
+    metaphor_list = [x for x in metaphor_list if x]  # Remove duds
 
     chosen_metaphor = random.choice(metaphor_list)
 
@@ -138,17 +118,17 @@ def create_metaphor_labels(boxes: list, initial_image, metaphor_list: list[str])
                     "applied to the items in the bounding boxes. This label should be a metaphorical way of"
                     "relating the items to the viewer in a meme. For example: 'me' or 'the food i just ate' etc."
                     "Be as crude, silly, and random as possible. Base it off of the caption, reasoning and image"
-                    "description provided.",
-     },
+                    "description provided. Please use the news information provided and the subjects of interest within it.",
+         },
         {
             "role": "user",
             "content": [
                 {"type": "text",
-                 "text": "Image Description: 2 Spiderman characters are looking and pointing at each other. In a cartoony/silly way.\n"
-                         "Reasoning: The image is funny because it shows 2 spiderman that look identical pointing to each other. \n"
-                         "The reason this is funny is because both spiderman look alike and are trying to accuse each other of something that they are also themselves guilty of \n"
-                            "Metaphor: The metaphor of the image is a meme poster. \n"
-                         f"Use this Metaphor to think of labels: {chosen_metaphor}"
+                 "text": f"Image Description: {image_description}"
+                         f"Use this Scenario to think of labels for each object. Scenario: {chosen_metaphor}"
+                         f"Please use the news information provided and the subjects of interest within it to create something people will "
+                         f"recognize."
+                         f"News Article: {news_information}",
 
                  },
                 {
@@ -187,56 +167,6 @@ def create_metaphor_labels(boxes: list, initial_image, metaphor_list: list[str])
         })
 
     return metaphors
-
-
-def create_completion(prompt: str, image_base64=None):
-    messages = [
-        {"role": "system",
-         "content": "Based off of the image provided. Identify what is funny about the image. Then, give examples of things in the bounding boxes represented in a scenario that would be relevant based on the context of the image."},
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": prompt},
-            ],
-        }
-    ]
-
-    if image_base64:
-        messages[1]["content"].append({
-            "type": "image_url",
-            "image_url": {
-                "url": f"data:image/jpeg;base64,{image_base64}",
-            },
-        })
-
-    tools = [
-        {
-            "type": "function",
-            "function": {
-                "name": "create_metaphor",
-                "description": "Create a metaphor that the object in the picture given can be compared to. This is for memes, so make it funny and follow the prompt / caption given.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "metaphor": {
-                            "type": "string",
-                            "description": "The metaphor that the object in the image can be compared to.",
-                            "maxLength": 20
-                        }
-                    },
-                    "required": ["metaphor"]
-                }
-            }
-        }
-    ]
-
-    # openai call
-    response = completion(model="gpt-4-turbo", messages=messages, tools=tools, tool_choice={
-        "type": "function",
-        "function": {"name": "create_metaphor"}
-    })
-
-    print(response)
 
 
 def create_meme_caption():

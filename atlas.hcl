@@ -8,7 +8,8 @@ data "external_schema" "sqlalchemy" {
 
 env "sqlalchemy" {
   src = data.external_schema.sqlalchemy.url
-  dev = "docker://postgres/16/dev?search_path=public"
+  url = "postgresql://postgres:1234@127.0.0.1:5432/postgres?sslmode=disable"
+  dev = "docker+postgres://_/my-postgres-vector:latest/dev?search_path=public"
   migration {
     dir = "file://migrations"
   }
