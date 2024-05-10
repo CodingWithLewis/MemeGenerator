@@ -1,6 +1,6 @@
 import streamlit as st
 
-from main import create_upload_file
+from video import get_news_meme
 
 st.markdown("""
 # Meme Generator
@@ -29,10 +29,10 @@ if submit:
         st.stop()
     bytes_data = meme_image.getvalue()
     with st.status("Starting...", state="running") as status:
-        image_path = create_upload_file(bytes_data, news_article, status)
+        meme_caption = get_news_meme(news_article, meme_image.getvalue())
         status.write("Finished!")
     with col2:
-        st.image(str(image_path.absolute()))
+        st.text_area(str(meme_caption))
 
 st.divider()
 with st.container():

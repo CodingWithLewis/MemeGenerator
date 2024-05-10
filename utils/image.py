@@ -3,10 +3,13 @@ import io
 import textwrap
 from io import BytesIO
 from pathlib import Path
+from typing import List
 
-import requests
-from fastapi import UploadFile
 from PIL import Image, ImageDraw, ImageFont
+from pydantic import conlist
+
+from datatypes.types import FinalMetaphorImageLabel
+
 
 def convert_to_base_64_string(image: bytes) -> str:
     return base64.b64encode(image).decode("utf-8")
@@ -18,44 +21,13 @@ def image_2_b64(image):
     img_str = base64.b64encode(buff.getvalue()).decode("utf-8")
     return img_str
 
-def get_image_caption_from_llm(image: str):
-    response = requests.post(
-        "http://localhost:11434/api/generate",
-        json={
-            "model": "llava",
-            "prompt": f"Given the image below, go into as much detail as possible about "
-                      f"the image and possible ways it could be humorous.",
-            "images": [image],
-            "stream": False
-        }
-    )
 
-    return response.json()['response']
-
-
-def create_bounding_boxes(results: list) -> list[tuple[int, int, int, int]]:
-    boxes = []
-    for result in results:
-        result.save("boxes.jpg")
-        for box in result.boxes:
-            print(box.xyxy)
-            xyxy_coords = [coord for coord in box.xyxy[0].tolist()]
-
-            # Unpack the coordinates
-            x1, y1, x2, y2 = xyxy_coords
-
-            # Create a tuple representing the bounding box
-            bbox = (x1, y1, x2, y2)
-
-            print(bbox)
-            boxes.append(bbox)
-
-    return boxes
-
-
-def create_bounding_box_in_image(image: bytes, box_coords: tuple[int, int, int, int]) -> Path:
+def create_bounding_box_in_image(
+    image: bytes, box_coords: conlist(int, min_length=4, max_length=4)
+) -> Path:
     from PIL import Image, ImageDraw
     import random
+
     # Open the image
     img = Image.open(io.BytesIO(image)).convert("L")
     img.save("gray_image.jpg")
@@ -76,42 +48,50 @@ def create_bounding_box_in_image(image: bytes, box_coords: tuple[int, int, int, 
     return Path(file_name)
 
 
-def add_captions_to_image(boxes, original_image):
+def add_captions_to_image(boxes: List[FinalMetaphorImageLabel], original_image: bytes):
     original_image = io.BytesIO(original_image)
     img = Image.open(original_image)
-
     draw = ImageDraw.Draw(img)
-    font_path = "/System/Library/Fonts/Supplemental/Arial.ttf"
     font_size = 24
-    font = ImageFont.truetype(font_path, font_size)
+    font = ImageFont.load_default(font_size)  # Ensure you have the correct font path
 
     for box in boxes:
-        bbox = box['box']
-        text = box['metaphor']
+        bbox = box.box
+        text = box.label
 
-        # Calculate bounding box width and height
+        # Calculate bounding box dimensions
         box_width = bbox[2] - bbox[0]
-        max_line_length = int(box_width / (font_size * 0.2))  # Estimate max characters per line, adjust multiplier as needed
+        box_height = bbox[3] - bbox[1]
+        max_line_length = int(
+            box_width / (font_size * 0.2)
+        )  # Adjust multiplier as needed
 
         # Wrap text to fit within bounding box width
         lines = textwrap.wrap(text, width=max_line_length)
-        y_text = bbox[1]
+
+        # Calculate the total text height
+        text_height = len(lines) * font_size
+
+        # Calculate initial y position to center text vertically
+        y_text = bbox[1] + (box_height - text_height) / 2
 
         for line in lines:
             # Measure text size for each line
             text_size = draw.textlength(line, font=font)
-            # If the text width is wider than the box, reduce the font size
-            while text_size > box_width:
-                font_size -= 1
-                font = ImageFont.truetype(font_path, font_size)
-                text_size = draw.textlength(line, font=font)
 
             # Calculate text position to center it horizontally
             text_x = bbox[0] + (box_width - text_size) / 2
 
             # Draw each line of text
-            draw.text((text_x, y_text), line, font=font, fill=(255, 255, 255), stroke_width=2, stroke_fill=(0, 0, 0))
-            y_text += text_size  # Move y coordinate for next line
+            draw.text(
+                (text_x, y_text),
+                line,
+                font=font,
+                fill=(255, 255, 255),
+                stroke_width=2,
+                stroke_fill=(0, 0, 0),
+            )
+            y_text += font_size  # Move y coordinate for next line
 
     img.save("image_with_text_stroke.jpg")
     return Path("image_with_text_stroke.jpg")

@@ -1,3 +1,5 @@
+*.jpg
+*.png
 meme_images
 venv
 .env

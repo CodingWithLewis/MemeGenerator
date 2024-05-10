@@ -20,7 +20,7 @@ def retrieve_relevant_meme(meme_description: str):
         input=meme_description
     )
     # Query postgres database with SQLAlchemy
-    engine = create_engine(os.getenv("NEON_DATABASE_CONNECTION_STRING"))
+    engine = create_engine(os.getenv("NEON_POSTGRES"))
 
     with Session(engine) as session:
         query = session.scalars(select(MemeEntry).order_by(MemeEntry.content_embedding.l2_distance(embedding.data[0].embedding)).limit(5))
