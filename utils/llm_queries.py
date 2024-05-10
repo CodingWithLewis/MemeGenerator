@@ -1,6 +1,8 @@
 import random
+import tempfile
 from typing import List
 
+import gradio_client
 import instructor
 import requests
 from dotenv import load_dotenv
@@ -90,9 +92,13 @@ def detect_objects_in_image(
     image: bytes, items_to_detect: List[str]
 ) -> List[Owlv2Classification]:
     # save the image to a file
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_image:
+        temp_image.write(image)
+        temp_image_path = temp_image.name
     client = Client("https://codingwithlewis-owlv2.hf.space")
     result = client.predict(
-        image,
+        gradio_client.file(temp_image_path),
         ",".join(items_to_detect),  # str  in 'text_queries' Textbox component
         0.15,  # float (numeric value between 0 and 1) in 'score_threshold' Slider component
         api_name="/predict",
