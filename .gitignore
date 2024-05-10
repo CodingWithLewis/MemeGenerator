@@ -6,4 +6,3 @@ venv
 .idea
 yolov8s-world.pt
 outputs
-*.jpg
