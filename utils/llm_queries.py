@@ -94,7 +94,7 @@ def detect_objects_in_image(
     path = "outputs/test_image.jpg"
     with open(path, "wb") as f:
         f.write(image)
-    client = Client("http://127.0.0.1:7860/")
+    client = Client("https://codingwithlewis-owlv2.hf.space")
     result = client.predict(
         gradio_client.file(path),
         ",".join(items_to_detect),  # str  in 'text_queries' Textbox component
