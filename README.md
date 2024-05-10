@@ -2,7 +2,7 @@
 
 ## From the Coding with Lewis Video:
 
-![Thumbnail for the AI meme video.](/docs/thumb7.png "Play Video")
+[![Thumbnail for the AI meme video.](/docs/thumb7.png "Play Video")](https://www.youtube.com/watch?v=5GfgrYz9z9A)
 
 ## Examples
 
