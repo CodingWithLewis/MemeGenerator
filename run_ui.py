@@ -27,6 +27,9 @@ if submit:
     if meme_image is None:
         st.error("Please upload an image!")
         st.stop()
+    if news_article.strip() = "" or "." not in news_article:
+        st.error("Please enter a valid news article!")
+        st.stop()
     bytes_data = meme_image.getvalue()
     with st.status("Starting...", state="running") as status:
         image_path = create_upload_file(bytes_data, news_article, status)
